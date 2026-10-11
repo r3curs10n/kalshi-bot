@@ -1,0 +1,45 @@
+{
+  "ticker": "KXBTC15M-26OCT030330-30",
+  "event_ticker": "KXBTC15M-26OCT030330",
+  "strike": 84598.41,
+  "strike_type": "",
+  "open_ms": 1791011700000,
+  "close_ms": 1791012600000,
+  "price_ranges": [
+    {
+      "end": "0.1000",
+      "start": "0.0000",
+      "step": "0.0010"
+    },
+    {
+      "end": "0.9000",
+      "start": "0.1000",
+      "step": "0.0100"
+    },
+    {
+      "end": "1.0000",
+      "start": "0.9000",
+      "step": "0.0010"
+    }
+  ],
+  "exchange_index": 2,
+  "status": "settled",
+  "result": "yes",
+  "expiration_value": 84608.85,
+  "settled_ms": 1791012607144,
+  "first_seen_ms": 1791010800886,
+  "last_write_ms": 1791076469719,
+  "gaps": [
+    {
+      "stream": "quotes",
+      "from_ms": 1791011188888,
+      "to_ms": 1791076469690,
+      "reason": "reconnect"
+    }
+  ],
+  "counts": {
+    "btc": 390,
+    "market": 81
+  },
+  "recorder_version": "0.1.0"
+}

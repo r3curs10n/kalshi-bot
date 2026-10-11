@@ -1,5 +1,7 @@
 /target
-/data
+/data/*
+!/data/sessions/
+!/data/brti/
 /models
 /reports
 config.toml
