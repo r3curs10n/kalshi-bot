@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session Viewer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --hover: rgba(11,11,11,0.04);
+  --select: rgba(42,120,214,0.10);
+  --yes: #2a78d6;
+  --no: #eb6834;
+  --fair: #1baf7a;
+  --window-wash: rgba(11,11,11,0.05);
+  --gap-wash: rgba(208,59,59,0.10);
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --warning: #fab219;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --hover: rgba(255,255,255,0.05);
+    --select: rgba(57,135,229,0.18);
+    --yes: #3987e5;
+    --no: #d95926;
+    --fair: #199e70;
+    --window-wash: rgba(255,255,255,0.06);
+    --gap-wash: rgba(208,59,59,0.18);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255,255,255,0.10);
+  --hover: rgba(255,255,255,0.05);
+  --select: rgba(57,135,229,0.18);
+  --yes: #3987e5;
+  --no: #d95926;
+  --fair: #199e70;
+  --window-wash: rgba(255,255,255,0.06);
+  --gap-wash: rgba(208,59,59,0.18);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button {
+  font: inherit; color: var(--ink-2); background: transparent; border: 0;
+  padding: 4px 10px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { color: var(--ink); background: var(--select); font-weight: 600; }
+.seg button:hover { background: var(--hover); }
+.hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+main { display: grid; grid-template-columns: 330px 1fr; min-height: calc(100vh - 53px); }
+@media (max-width: 860px) { main { grid-template-columns: 1fr; } #list { max-height: 40vh; } }
+
+#list { border-right: 1px solid var(--border); overflow-y: auto; max-height: calc(100vh - 53px); }
+.row {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px;
+  padding: 8px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.row:hover { background: var(--hover); }
+.row[aria-selected="true"] { background: var(--select); }
+.row .tk { font-weight: 600; font-variant-numeric: tabular-nums; }
+.row .sub { color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.row .right { text-align: right; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.empty { padding: 24px 16px; color: var(--ink-2); }
+
+#detail { padding: 16px; min-width: 0; }
+#detail h2 { margin: 0 0 4px; font-size: 18px; }
+#detail .meta-line { color: var(--ink-2); font-size: 13px; margin-bottom: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.tile .k { color: var(--ink-2); font-size: 12px; }
+.tile .v { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.tile .s { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; transition: opacity .15s; }
+.card h3 { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+.card .note { color: var(--ink-2); font-size: 12px; margin-bottom: 6px; }
+.loading .card { opacity: 0.55; }
+.chart { width: 100%; }
+
+/* uPlot legend as the live readout: value leads, label follows, line keys. */
+.u-legend { text-align: left; font-size: 12px; color: var(--ink-2); margin: 0 0 4px; }
+.u-legend .u-series { padding: 0 10px 0 0; }
+.u-legend .u-series:first-child .u-marker { display: none; }
+.u-legend .u-series:first-child .u-value { color: var(--ink-2); font-weight: 400; }
+.u-legend .u-value { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.u-legend .u-marker { width: 14px; height: 0 !important; border-width: 2px 0 0 0 !important; border-style: solid; background: none !important; margin-right: 4px; vertical-align: middle; }
+.u-legend .u-series.u-off > * { opacity: 0.35; }
+.u-select { background: var(--select); }
+.u-cursor-x { border-right: 1px solid var(--muted) !important; }
+.u-cursor-y { display: none; }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+th { color: var(--ink-2); font-weight: 600; }
+td.num, th.num { text-align: right; }
+.actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.btn {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; cursor: pointer;
+}
+.btn:hover { background: var(--hover); }
+.err { color: var(--critical); padding: 16px; }
+.bt-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.bt-controls select {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; max-width: 100%;
+}
+.bt-status { color: var(--ink-2); font-size: 12px; }
+.bt-status.bad { color: var(--critical); }
+.pos { color: var(--good); }
+.trade-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+.trade-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.trade-legend svg { flex: none; }
+#tip {
+  position: fixed; z-index: 10; pointer-events: none; display: none;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15); padding: 8px 10px; font-size: 12px; line-height: 1.5;
+  font-variant-numeric: tabular-nums; max-width: 260px;
+}
+#tip .h { font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+#tip .r { display: flex; justify-content: space-between; gap: 16px; }
+#tip .r span:first-child { color: var(--ink-2); }
+.neg { color: var(--critical); }
+.live-card { border-color: var(--warning); }
+.live-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 12px; margin: 8px 0; }
+.live-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-2); min-width: 0; }
+.live-form label.wide { grid-column: 1 / -1; }
+.live-form input, .live-form textarea, .live-form select {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--page);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; min-width: 0; width: 100%;
+}
+.live-form textarea { font-family: ui-monospace, monospace; font-size: 11px; height: 72px; resize: vertical; }
+.btn.danger { border-color: var(--critical); color: var(--critical); }
+.btn.go { border-color: var(--warning); font-weight: 600; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.live-log { font: 11px/1.5 ui-monospace, monospace; color: var(--ink-2); background: var(--page); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 8px; max-height: 160px; overflow-y: auto; white-space: pre-wrap; margin: 8px 0 0; }
+#live-badge { font-size: 12px; font-weight: 600; border: 1px solid var(--warning); border-radius: 8px; padding: 2px 8px; cursor: pointer; background: transparent; color: var(--ink); font-family: inherit; }
+#live-badge[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>KXBTC15M sessions</h1>
+  <div class="seg" id="filter" role="group" aria-label="Status filter">
+    <button data-f="all" aria-pressed="true">All</button>
+    <button data-f="recording">Recording</button>
+    <button data-f="settled">Settled</button>
+    <button data-f="other">Closed / unsettled</button>
+  </div>
+  <div class="seg" id="overlays" role="group" aria-label="Trade overlays">
+    <button data-o="paper" aria-pressed="true">Paper trades</button>
+    <button data-o="backtest" aria-pressed="true">Backtest trades</button>
+  </div>
+  <button id="live-badge" hidden></button>
+  <span class="hint">Drag on a chart to zoom, double-click to reset. Live sessions refresh every 5s.</span>
+</header>
+<main>
+  <nav id="list" aria-label="Sessions"></nav>
+  <section id="detail"><div class="empty">Select a session.</div></section>
+</main>
+
+<div id="tip" role="tooltip"></div>
+<script>
+"use strict";
+const $ = (sel, el = document) => el.querySelector(sel);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  for (const k of kids) e.append(k instanceof Node ? k : document.createTextNode(k ?? ""));
+  return e;
+};
+const usd = (v, d = 2) => v == null ? "–" : "$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const signed = v => v == null ? "–" : (v >= 0 ? "+" : "−") + "$" + Math.abs(v).toFixed(2);
+const price = v => v == null ? "–" : Number(v).toFixed(3);
+const hhmmss = ms => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+const hhmm = ms => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const rgba = (hex, a) => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+};
+
+let sessions = [];
+let filter = "all";
+let selected = null;          // {date, ticker}
+let view = null;              // last SessionView
+let charts = [];
+let zoom = null;              // [min, max] in seconds, shared by all charts
+let strategies = [];          // [{id, label}] from /api/strategies
+let bt = null;                // last backtest result, for `selected`
+let btState = { busy: false, error: null };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+let btStrategy = store.get("bt-strategy");
+// Which trade overlays are visible; remembered per browser.
+const show = { paper: store.get("show-paper") !== "0", backtest: store.get("show-backtest") !== "0" };
+
+// ---------------------------------------------------------------- list ---
+async function loadSessions() {
+  try {
+    sessions = await (await fetch("/api/sessions")).json();
+  } catch (e) { return; }
+  renderList();
+}
+
+function matches(s) {
+  if (filter === "all") return true;
+  if (filter === "other") return s.status === "closed" || s.status === "unsettled";
+  return s.status === filter;
+}
+
+function statusDot(s) {
+  // Status color always paired with a text label.
+  const c = s.status === "settled" ? "--good" : s.status === "recording" ? "--warning" : s.status === "unsettled" ? "--critical" : "--muted";
+  return el("span", { class: "dot", style: `background: var(${c})` });
+}
+
+function renderList() {
+  const list = $("#list");
+  list.replaceChildren();
+  const rows = sessions.filter(matches);
+  if (!rows.length) { list.append(el("div", { class: "empty" }, "No sessions recorded yet. Run `kbot record`.")); return; }
+  for (const s of rows) {
+    const isSel = selected && selected.ticker === s.ticker;
+    const result = s.result ? s.result.toUpperCase() : "–";
+    const c = s.counts || {};
+    const row = el("div", { class: "row", role: "option", tabindex: "0", "aria-selected": String(!!isSel) },
+      el("div", { class: "tk" }, s.ticker.replace("KXBTC15M-", "")),
+      el("div", { class: "right sub" }, statusDot(s), s.status),
+      el("div", { class: "sub" }, `${hhmm(s.open_ms)}–${hhmm(s.close_ms)} · strike ${s.strike ? usd(s.strike) : "TBD"}`),
+      el("div", { class: "right sub" }, show.paper && s.paper_pnl != null ? `paper ${signed(s.paper_pnl)}` : `result ${result}`),
+      el("div", { class: "sub", style: "grid-column: 1 / -1; color: var(--muted)" },
+        `btc ${c.btc || 0} · quotes ${c.quotes || 0} · trades ${c.trades || 0} · book ${c.book || 0}` +
+        (s.gaps ? ` · ${s.gaps} gap${s.gaps > 1 ? "s" : ""}` : "") + (s.episode ? " · episode" : "")));
+    const pick = () => select(s.date, s.ticker);
+    row.addEventListener("click", pick);
+    row.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+    list.append(row);
+  }
+}
+
+for (const b of $("#overlays").children) b.setAttribute("aria-pressed", String(show[b.dataset.o]));
+$("#overlays").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const k = b.dataset.o;
+  show[k] = !show[k];
+  store.set(`show-${k}`, show[k] ? "1" : "0");
+  b.setAttribute("aria-pressed", String(show[k]));
+  hideTip();
+  renderList();
+  if (view) renderDetail(false);
+});
+
+$("#filter").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  filter = b.dataset.f;
+  for (const x of $("#filter").children) x.setAttribute("aria-pressed", String(x === b));
+  renderList();
+});
+
+// -------------------------------------------------------------- detail ---
+async function select(date, ticker) {
+  const changed = !selected || selected.ticker !== ticker;
+  selected = { date, ticker };
+  if (changed) { zoom = null; bt = null; btState = { busy: false, error: null }; }
+  location.hash = `${date}/${ticker}`;
+  renderList();
+  await loadDetail(changed);
+}
+
+async function loadDetail(fresh) {
+  if (!selected) return;
+  const detail = $("#detail");
+  detail.classList.add("loading");
+  try {
+    const r = await fetch(`/api/session/${encodeURIComponent(selected.date)}/${encodeURIComponent(selected.ticker)}`);
+    if (!r.ok) throw new Error(await r.text());
+    view = await r.json();
+    renderDetail(fresh);
+  } catch (e) {
+    detail.replaceChildren(el("div", { class: "err" }, "Could not load session: " + e.message));
+  } finally {
+    detail.classList.remove("loading");
+  }
+}
+
+function tile(k, v, s) {
+  return el("div", { class: "tile" }, el("div", { class: "k" }, k), el("div", { class: "v" }, v), el("div", { class: "s" }, s || ""));
+}
+
+function renderDetail(fresh) {
+  const m = view.meta;
+  const detail = $("#detail");
+  const now = Date.now();
+  const left = m.close_ms - now;
+  const timing = now < m.open_ms ? `opens in ${fmtDur(m.open_ms - now)}` : left > 0 ? `closes in ${fmtDur(left)}` : `closed ${hhmmss(m.close_ms)}`;
+
+  const resultTile = m.result
+    ? el("div", { class: "tile" }, el("div", { class: "k" }, "Result"),
+        el("div", { class: "v" }, el("span", { class: "dot", style: `background: var(${m.result === "yes" ? "--yes" : "--no"})` }), m.result.toUpperCase()),
+        el("div", { class: "s" }, `settled at ${usd(m.expiration_value)}`))
+    : tile("Result", "pending", m.status);
+  const strikeDiff = view.strike_avg != null && m.strike != null ? view.strike_avg - m.strike : null;
+  const settleDiff = view.settle_avg != null && m.expiration_value != null ? view.settle_avg - m.expiration_value : null;
+  const c = m.counts || {};
+  const paperSettle = show.paper ? view.paper.find(p => p.type === "settle") : null;
+  const fills = show.paper ? view.paper.filter(p => p.type === "fill") : [];
+
+  const tiles = el("div", { class: "tiles" },
+    tile("Strike", m.strike != null ? usd(m.strike) : "TBD", strikeDiff != null ? `our 60s avg ${signed(strikeDiff)} vs Kalshi` : "avg of 60s BRTI before open"),
+    resultTile,
+    tile("Settlement avg (ours)", view.settle_avg != null ? usd(view.settle_avg) : "–", settleDiff != null ? `${signed(settleDiff)} vs Kalshi` : "60s BRTI before close"),
+    tile("Window", `${hhmm(m.open_ms)}–${hhmm(m.close_ms)}`, timing),
+    tile("Messages", (c.btc || 0) + (c.quotes || 0) + (c.trades || 0) + (c.book || 0) + (c.market || 0) + "", `btc ${c.btc || 0} · quotes ${c.quotes || 0} · trades ${c.trades || 0}`),
+    tile("Gaps", String(m.gaps.length), m.gaps.length ? m.gaps.map(g => `${g.stream} ${Math.round((g.to_ms - g.from_ms) / 1000)}s ${g.reason}`).join(", ") : "none"),
+    show.paper ? tile("Paper P&L", paperSettle ? signed(paperSettle.pnl) : fills.length ? "open" : "–", fills.length ? `${fills.length} fills, fees ${usd(fills.reduce((a, f) => a + f.fee, 0))}` : "no paper trades") : "",
+  );
+
+  const anyTrades = tradeMarkers().length > 0;
+  const btcCard = el("div", { class: "card" }, el("h3", {}, "BRTI (settlement index)"),
+    el("div", { class: "note" }, "Shaded: the 60s averaged into the strike (before open) and into settlement (before close). Dot at close: Kalshi's settlement value. Red wash: recording gaps." +
+      (anyTrades ? " Trades sit on BRTI at their fill time; hover one for details." : "")),
+    anyTrades ? tradeLegend() : "",
+    el("div", { class: "chart", id: "c-btc" }));
+  const pxCard = el("div", { class: "card" }, el("h3", {}, "Contract prices"),
+    el("div", { class: "note" }, "Bands span bid to ask for each side. Fair = analytic P(YES) used by the fair-value strategy. Trades sit at their fill price; hover one for details."),
+    anyTrades ? tradeLegend() : "",
+    el("div", { class: "chart", id: "c-px" }));
+  const flowCard = el("div", { class: "card" }, el("h3", {}, "Trade flow (contracts per 5s)"),
+    el("div", { class: "note" }, "Public prints by taker: YES takers above zero, NO takers below."),
+    el("div", { class: "chart", id: "c-flow" }));
+
+  const actions = el("div", { class: "actions" },
+    el("button", { class: "btn", onclick: downloadCsv }, "Download 1s series (CSV)"));
+
+  const kids = [el("h2", {}, m.ticker), el("div", { class: "meta-line" }, [m.status, m.strike_type, m.exchange_index != null ? `exchange shard ${m.exchange_index}` : null].filter(Boolean).join(" · ")), tiles];
+  if (now < m.close_ms || liveSession(m.ticker)) kids.push(liveCard(m.ticker));
+  kids.push(backtestCard(), btcCard, pxCard);
+  if (bt) kids.push(el("div", { class: "card" }, el("h3", {}, `Backtest account value: ${bt.label}`),
+    el("div", { class: "note" }, `Cash plus holdings marked at mid, from open, starting at ${usd(bt.balance)} (dashed line). The last point is after the $1/$0 payout, so it is the ending balance.`),
+    el("div", { class: "chart", id: "c-eq" })));
+  kids.push(flowCard, actions);
+  if (show.backtest && bt && bt.fills.length) kids.push(backtestTable(bt));
+  if (fills.length) kids.push(paperTable(fills));
+  detail.replaceChildren(...kids);
+  drawCharts();
+}
+
+// ---------------------------------------------------------------- live ---
+// The card is built once per ticker and updated in place, so the 5s refresh
+// never wipes what is being typed. The private key stays in this page's
+// memory and the server's, never in browser storage or on disk.
+let live = null;              // /api/live status, or null
+let liveBusy = false, liveError = null;
+let liveEl = null, liveElTicker = null;
+const liveForm = { keyId: store.get("live-key-id") || "", pem: "", budget: store.get("live-budget") || "", strategy: store.get("live-strategy") };
+const liveActive = () => live && !["stopped", "failed"].includes(live.state);
+const liveSession = t => live && live.sessions.find(s => s.ticker === t);
+
+function liveCard(ticker) {
+  if (liveEl && liveElTicker === ticker) { updateLive(); return liveEl; }
+  liveElTicker = ticker;
+  liveError = null;
+  const keyId = el("input", { type: "text", autocomplete: "off", spellcheck: "false", placeholder: "e.g. 1a2b3c4d-…" });
+  keyId.value = liveForm.keyId;
+  keyId.addEventListener("input", () => { liveForm.keyId = keyId.value.trim(); store.set("live-key-id", liveForm.keyId); });
+  const pem = el("textarea", { autocomplete: "off", spellcheck: "false", placeholder: "-----BEGIN RSA PRIVATE KEY-----\n…" });
+  pem.value = liveForm.pem;
+  pem.addEventListener("input", () => { liveForm.pem = pem.value; });
+  const file = el("input", { type: "file", accept: ".pem,.txt,.key" });
+  file.addEventListener("change", async () => { const f = file.files[0]; if (f) { liveForm.pem = pem.value = await f.text(); } });
+  const budget = el("input", { type: "number", min: "1", step: "1", inputmode: "decimal", placeholder: "dollars" });
+  budget.value = liveForm.budget;
+  budget.addEventListener("input", () => { liveForm.budget = budget.value; store.set("live-budget", budget.value); });
+  const sel = el("select", { "aria-label": "Live strategy" });
+  for (const s of strategies) sel.append(el("option", { value: s.id }, s.label));
+  if (!strategies.some(s => s.id === liveForm.strategy)) liveForm.strategy = (strategies.find(s => s.id === "rule") || strategies[0] || {}).id;
+  sel.value = liveForm.strategy;
+  sel.addEventListener("change", () => { liveForm.strategy = sel.value; store.set("live-strategy", sel.value); });
+  const startBtn = el("button", { class: "btn go", onclick: () => startLive(ticker) }, "Start live trading");
+  const form = el("div", {},
+    el("div", { class: "live-form" },
+      el("label", {}, "Kalshi API key ID", keyId),
+      el("label", {}, "Budget per session ($)", budget),
+      el("label", { class: "wide" }, "Private key (PEM). Kept in memory only, never saved.", pem, file),
+      el("label", { class: "wide" }, "Strategy", sel)),
+    el("div", { class: "bt-controls" }, startBtn, el("span", { class: "bt-status", id: "live-msg" })));
+  liveEl = el("div", { class: "card live-card" },
+    el("h3", {}, "Live trading: real money"),
+    el("div", { class: "note" }, "Runs the strategy with your Kalshi account on this session and every one after it, until you press Stop. Each session starts with the budget as its cash, and every real fill moves it, so no session spends more than that. Orders are immediate-or-cancel limits 1¢ through the touch. Before each session, if the crypto shard holds less than the budget, the difference is moved there from your default shard."),
+    form, el("div", { id: "live-status" }));
+  liveEl._form = form; liveEl._start = startBtn;
+  updateLive();
+  return liveEl;
+}
+
+function updateLive() {
+  if (!liveEl) return;
+  const active = liveActive();
+  const sess = liveSession(liveElTicker);
+  liveEl._form.hidden = active;
+  liveEl._start.disabled = liveBusy || active;
+  liveEl._start.textContent = liveBusy ? "Starting…" : "Start live trading";
+  const msg = $("#live-msg", liveEl);
+  msg.className = "bt-status" + (liveError ? " bad" : "");
+  msg.textContent = liveError || "";
+  const box = $("#live-status", liveEl);
+  if (!live || (!active && !sess)) { box.replaceChildren(); return; }
+  const label = (strategies.find(s => s.id === live.strategy) || {}).label || live.strategy;
+  const settled = live.sessions.filter(s => s.state === "settled");
+  const totalTile = tile("Run P&L", "", `${settled.length} settled of ${live.sessions.length} session${live.sessions.length === 1 ? "" : "s"}`);
+  totalTile.querySelector(".v").append(el("span", { class: live.total_pnl > 0 ? "pos" : live.total_pnl < 0 ? "neg" : "" }, signed(live.total_pnl)));
+  const d = live.last_decision;
+  const kids = [el("div", { class: "tiles", style: "margin: 8px 0 0" },
+    tile("Run", live.state, label),
+    tile("Budget", usd(live.budget), "per session"),
+    totalTile,
+    tile("Trading now", live.current ? live.current.replace("KXBTC15M-", "") : "–", live.current ? (d ? `last: ${d.action === "Nothing" ? "nothing" : `${d.action} ×${d.size}`}` : "") : active ? "waiting for the next session" : ""))];
+  if (sess) {
+    const p = sess.position;
+    const pnl = tile("This session P&L", "", sess.result ? `settled ${sess.result.toUpperCase()}` : sess.state);
+    pnl.querySelector(".v").append(sess.pnl != null ? el("span", { class: sess.pnl > 0 ? "pos" : sess.pnl < 0 ? "neg" : "" }, signed(sess.pnl)) : "–");
+    kids.push(el("div", { class: "tiles", style: "margin: 8px 0 0" },
+      tile("This session", sess.state, liveElTicker.replace("KXBTC15M-", "")),
+      tile("Cash left", usd(p.cash), `of ${usd(live.budget)}`),
+      tile("Position", p.yes ? `YES ×${p.yes}` : p.no ? `NO ×${p.no}` : "flat", p.cost ? `cost ${usd(p.cost)}` : ""),
+      tile("Fees", usd(sess.fees), `${sess.orders.length} order${sess.orders.length === 1 ? "" : "s"}`),
+      pnl));
+  }
+  if (active) kids.push(el("div", { class: "bt-controls" },
+    el("button", { class: "btn danger", onclick: stopLive }, "Stop"),
+    el("span", { class: "bt-status" }, "Stops the whole run. Anything held stays open on Kalshi and settles there.")));
+  if (live.sessions.length) {
+    const tb = el("tbody");
+    for (const x of live.sessions.slice().reverse()) {
+      const row = el("tr", { style: "cursor: pointer" + (x.ticker === liveElTicker ? "; background: var(--select)" : "") },
+        el("td", {}, x.ticker.replace("KXBTC15M-", "")), el("td", {}, x.state),
+        el("td", {}, x.position.yes ? `YES ×${x.position.yes}` : x.position.no ? `NO ×${x.position.no}` : "flat"),
+        el("td", { class: "num" }, String(x.orders.length)), el("td", { class: "num" }, usd(x.fees)),
+        el("td", {}, x.result ? x.result.toUpperCase() : "–"),
+        el("td", { class: "num" }, x.pnl != null ? el("span", { class: x.pnl > 0 ? "pos" : x.pnl < 0 ? "neg" : "" }, signed(x.pnl)) : "–"));
+      row.addEventListener("click", () => { const s = sessions.find(y => y.ticker === x.ticker); if (s) select(s.date, s.ticker); });
+      tb.append(row);
+    }
+    kids.push(el("h3", { style: "margin-top: 12px" }, "Sessions in this run"), el("table", {},
+      el("thead", {}, el("tr", {}, el("th", {}, "Session"), el("th", {}, "State"), el("th", {}, "Position"), el("th", { class: "num" }, "Orders"),
+        el("th", { class: "num" }, "Fees"), el("th", {}, "Result"), el("th", { class: "num" }, "P&L"))), tb));
+  }
+  if (sess && sess.orders.length) {
+    const tb = el("tbody");
+    for (const o of sess.orders) tb.append(el("tr", {}, el("td", {}, hhmmss(o.t_ms)), el("td", {}, o.action),
+      el("td", { class: "num" }, `${o.filled}/${o.wanted}`), el("td", { class: "num" }, price(o.price)), el("td", { class: "num" }, o.yes_limit),
+      el("td", { class: "num" }, usd(o.fee)), el("td", {}, o.error || o.status)));
+    kids.push(el("h3", { style: "margin-top: 12px" }, "Orders this session"), el("table", {},
+      el("thead", {}, el("tr", {}, el("th", {}, "Time"), el("th", {}, "Action"), el("th", { class: "num" }, "Filled"), el("th", { class: "num" }, "Avg price"),
+        el("th", { class: "num" }, "YES limit"), el("th", { class: "num" }, "Fee"), el("th", {}, "Status"))), tb));
+  }
+  const log = el("pre", { class: "live-log" }, live.log.slice(-60).join("\n"));
+  kids.push(log);
+  box.replaceChildren(...kids);
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateBadge() {
+  const b = $("#live-badge");
+  b.hidden = !liveActive();
+  if (liveActive()) b.textContent = `LIVE ${live.current ? live.current.replace("KXBTC15M-", "") : "waiting"} · run ${signed(live.total_pnl)}`;
+}
+$("#live-badge").addEventListener("click", () => {
+  const t = live && (live.current || (live.sessions.at(-1) || {}).ticker);
+  const s = t && sessions.find(x => x.ticker === t);
+  if (s) select(s.date, s.ticker);
+});
+
+async function pollLive() {
+  try { live = await (await fetch("/api/live")).json(); } catch (e) { return; }
+  updateBadge();
+  updateLive();
+}
+
+async function startLive(ticker) {
+  const budget = Number(liveForm.budget);
+  liveError = null;
+  if (!liveForm.keyId || !liveForm.pem.includes("PRIVATE KEY")) liveError = "Enter the API key ID and paste or load the private key.";
+  else if (!(budget >= 1)) liveError = "Budget must be at least $1.";
+  else if (!liveForm.strategy) liveError = "Pick a strategy.";
+  if (liveError) { updateLive(); return; }
+  const label = (strategies.find(s => s.id === liveForm.strategy) || {}).label || liveForm.strategy;
+  if (!confirm(`Trade with REAL money from ${ticker} on, every session until you press Stop?\n\nStrategy: ${label}\nBudget: ${usd(budget)} per session (moved from your default shard to the crypto shard if that one holds less)\n\nOrders go out automatically.`)) return;
+  liveBusy = true; updateLive();
+  try {
+    const r = await fetch("/api/live/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker, strategy: liveForm.strategy, key_id: liveForm.keyId, private_key: liveForm.pem, budget }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    live = await r.json();
+  } catch (e) { liveError = e.message; }
+  liveBusy = false;
+  updateBadge(); updateLive();
+}
+
+async function stopLive() {
+  if (!confirm("Stop live trading for all future sessions? Anything held stays open on Kalshi.")) return;
+  try {
+    const r = await fetch("/api/live/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!r.ok) throw new Error(await r.text());
+  } catch (e) { liveError = e.message; }
+  pollLive();
+}
+
+// ------------------------------------------------------------ backtest ---
+async function loadStrategies() {
+  try { strategies = await (await fetch("/api/strategies")).json(); } catch (e) { strategies = []; }
+  if (!strategies.some(s => s.id === btStrategy)) {
+    // Default to the newest-looking model, else the fair-value baseline.
+    const models = strategies.filter(s => s.id !== "nothing" && s.id !== "fair" && !s.id.startsWith("rule"));
+    btStrategy = (models[models.length - 1] || strategies.find(s => s.id === "fair") || {}).id || null;
+  }
+}
+
+function backtestCard() {
+  const sel = el("select", { "aria-label": "Strategy" });
+  for (const s of strategies) {
+    const o = el("option", { value: s.id }, s.label);
+    if (s.id === btStrategy) o.selected = true;
+    sel.append(o);
+  }
+  sel.addEventListener("change", () => { btStrategy = sel.value; store.set("bt-strategy", btStrategy); });
+  const runBtn = el("button", { class: "btn", onclick: runBacktest }, btState.busy ? "Running…" : "Run on this session");
+  if (btState.busy || !strategies.length) runBtn.disabled = true;
+  const status = btState.error
+    ? el("span", { class: "bt-status bad" }, btState.error)
+    : bt ? el("span", { class: "bt-status" }, `${bt.label} · ${bt.source}`) : el("span", { class: "bt-status" }, "Replays the session from a $1,000 balance: 1s latency, taker fills at the touch (partial if it's thin), Kalshi fees.");
+  const kids = [el("h3", {}, "Backtest"), el("div", { class: "bt-controls" }, sel, runBtn, status)];
+  if (bt) {
+    const cls = bt.pnl > 0 ? "pos" : bt.pnl < 0 ? "neg" : "";
+    const pnlTile = tile("P&L (settled)", "", `result ${bt.result_yes ? "YES" : "NO"}`);
+    pnlTile.querySelector(".v").append(el("span", { class: cls }, signed(bt.pnl)));
+    const buys = bt.fills.filter(f => f.action.startsWith("Buy")).length;
+    const spent = bt.fills.filter(f => f.action.startsWith("Buy")).reduce((a, f) => a + f.size * f.price, 0);
+    kids.push(el("div", { class: "tiles", style: "margin-bottom: 0" },
+      pnlTile,
+      tile("Balance", usd(bt.balance + bt.pnl), `started at ${usd(bt.balance)}`),
+      tile("Bought", usd(spent), buys ? `largest buy ${usd(Math.max(...bt.fills.filter(f => f.action.startsWith("Buy")).map(f => f.size * f.price)))}` : "no buys"),
+      tile("Fees", usd(bt.fees), "included in P&L"),
+      tile("Fills", String(bt.trades), `${buys} buys · ${bt.trades - buys} sells`),
+      tile("Missed orders", String(bt.missed), "nothing fillable at fill time"),
+    ));
+  }
+  return el("div", { class: "card" }, ...kids);
+}
+
+async function runBacktest() {
+  if (!selected || !btStrategy) return;
+  const target = selected.ticker, strat = btStrategy;
+  btState = { busy: true, error: null };
+  renderDetail(false);
+  try {
+    const r = await fetch(`/api/session/${encodeURIComponent(selected.date)}/${encodeURIComponent(target)}/run?strategy=${encodeURIComponent(strat)}`);
+    if (!r.ok) throw new Error(await r.text());
+    const res = await r.json();
+    if (!selected || selected.ticker !== target) return;
+    res.label = (strategies.find(s => s.id === strat) || {}).label || strat;
+    bt = res;
+    btState = { busy: false, error: null };
+  } catch (e) {
+    if (!selected || selected.ticker !== target) return;
+    bt = null;
+    btState = { busy: false, error: e.message };
+  }
+  renderDetail(false);
+}
+
+function backtestTable(r) {
+  const t = el("table", {},
+    el("thead", {}, el("tr", {}, el("th", {}, "Time"), el("th", {}, "Action"), el("th", { class: "num" }, "Size"), el("th", { class: "num" }, "Price"), el("th", { class: "num" }, "Cost / proceeds"), el("th", { class: "num" }, "Fee"), el("th", {}, "Position after"), el("th", { class: "num" }, "Cash after"))));
+  const tb = el("tbody");
+  const pos = { yes: 0, no: 0 };
+  let cash = r.balance;
+  for (const f of r.fills) {
+    const side = f.action.endsWith("Yes") ? "yes" : "no";
+    const buy = f.action.startsWith("Buy");
+    pos[side] += buy ? f.size : -f.size;
+    const notional = f.size * f.price;
+    cash += (buy ? -notional : notional) - f.fee;
+    tb.append(el("tr", {}, el("td", {}, hhmmss(f.t_ms)), el("td", {}, f.action), el("td", { class: "num" }, String(f.size)),
+      el("td", { class: "num" }, price(f.price)), el("td", { class: "num" }, (buy ? "−" : "+") + usd(notional)), el("td", { class: "num" }, usd(f.fee)),
+      el("td", {}, `YES ${pos.yes} / NO ${pos.no}`), el("td", { class: "num" }, usd(cash))));
+  }
+  t.append(tb);
+  return el("div", { class: "card" }, el("h3", {}, `Backtest fills: ${r.label}`), t);
+}
+
+// ------------------------------------------------------- trade markers ---
+// Color = side (YES blue, NO orange), shape = direction (▲ buy, ▼ sell),
+// fill = source (solid paper fill, hollow backtest fill).
+const ACTION_LABEL = { BuyYes: "Buy YES", SellYes: "Sell YES", BuyNo: "Buy NO", SellNo: "Sell NO" };
+
+/// Every trade to plot, with the account after it.
+function tradeMarkers() {
+  const out = [];
+  for (const f of show.paper ? view.paper.filter(p => p.type === "fill") : []) {
+    out.push({ ...f, source: "Paper", pos: f.position || {}, cash: f.position && f.position.cash });
+  }
+  if (bt && show.backtest) {
+    const pos = { yes: 0, no: 0 };
+    let cash = bt.balance;
+    for (const f of bt.fills) {
+      const buy = f.action.startsWith("Buy"), side = f.action.endsWith("Yes") ? "yes" : "no";
+      pos[side] += buy ? f.size : -f.size;
+      cash += (buy ? -1 : 1) * f.size * f.price - f.fee;
+      out.push({ ...f, source: `Backtest · ${bt.label}`, pos: { ...pos }, cash });
+    }
+  }
+  return out;
+}
+
+/// BRTI at a fill time: the 1s grid value, or the nearest one before it.
+function btcAt(t_ms) {
+  const g = view.grid;
+  let i = Math.min(g.t.length - 1, Math.max(0, Math.floor(t_ms / 1000) - g.t[0]));
+  while (i > 0 && g.btc[i] == null) i--;
+  return g.btc[i];
+}
+
+function markerPath(ctx, x, y, s, buy) {
+  ctx.beginPath();
+  if (buy) { ctx.moveTo(x, y - s); ctx.lineTo(x + s, y + s * 0.8); ctx.lineTo(x - s, y + s * 0.8); }
+  else { ctx.moveTo(x, y + s); ctx.lineTo(x + s, y - s * 0.8); ctx.lineTo(x - s, y - s * 0.8); }
+  ctx.closePath();
+}
+
+function markerStyle(f) {
+  const color = css(f.action.endsWith("Yes") ? "--yes" : "--no");
+  return f.source === "Paper" ? { fill: color, stroke: css("--surface") } : { fill: css("--surface"), stroke: color };
+}
+
+function drawMarkers(u, markers, yOf, hot) {
+  const ctx = u.ctx, r = uPlot.pxRatio;
+  for (const f of markers) {
+    const v = yOf(f);
+    if (v == null) continue;
+    const x = u.valToPos(f.t_ms / 1000, "x", true), y = u.valToPos(v, "y", true);
+    const st = markerStyle(f), big = f === hot;
+    markerPath(ctx, x, y, (big ? 8 : 6) * r, f.action.startsWith("Buy"));
+    ctx.fillStyle = st.fill; ctx.strokeStyle = st.stroke; ctx.lineWidth = 2 * r;
+    ctx.fill(); ctx.stroke();
+  }
+}
+
+function legendIcon(action, paper) {
+  const color = `var(${action.endsWith("Yes") ? "--yes" : "--no"})`;
+  const pts = action.startsWith("Buy") ? "7,2 12,11 2,11" : "7,12 12,3 2,3";
+  const svg = `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><polygon points="${pts}" style="fill: ${paper ? color : "var(--surface)"}; stroke: ${paper ? "var(--surface)" : color}; stroke-width: 1.6"/></svg>`;
+  const s = el("span");
+  s.innerHTML = svg;
+  return s;
+}
+
+function tradeLegend() {
+  const row = el("div", { class: "trade-legend" });
+  for (const a of ["BuyYes", "SellYes", "BuyNo", "SellNo"]) {
+    const s = legendIcon(a, false);
+    s.append(ACTION_LABEL[a]);
+    row.append(s);
+  }
+  if (show.paper) { const solid = legendIcon("BuyYes", true); solid.append("solid = paper"); row.append(solid); }
+  if (show.backtest) { const hollow = legendIcon("BuyYes", false); hollow.append("hollow = backtest"); row.append(hollow); }
+  return row;
+}
+
+function showTip(f, cx, cy) {
+  const tip = $("#tip");
+  const buy = f.action.startsWith("Buy");
+  const notional = f.size * f.price;
+  const row = (k, v) => el("div", { class: "r" }, el("span", {}, k), el("span", {}, v));
+  const head = legendIcon(f.action, f.source === "Paper");
+  head.className = "h";
+  head.append(`${ACTION_LABEL[f.action] || f.action} × ${f.size}`);
+  const kids = [head,
+    row("Time", hhmmss(f.t_ms)),
+    row("Price", price(f.price)),
+    row(buy ? "Cost" : "Proceeds", usd(notional)),
+    row("Fee", usd(f.fee)),
+    row("BRTI", usd(btcAt(f.t_ms))),
+    row("Position after", `YES ${f.pos.yes || 0} / NO ${f.pos.no || 0}`)];
+  if (f.cash != null) kids.push(row("Cash after", usd(f.cash)));
+  kids.push(el("div", { style: "color: var(--muted); margin-top: 2px" }, f.source));
+  tip.replaceChildren(...kids);
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = cx + 14, y = cy + 14;
+  if (x + w > innerWidth - 8) x = cx - w - 14;
+  if (y + h > innerHeight - 8) y = cy - h - 14;
+  tip.style.left = Math.max(8, x) + "px";
+  tip.style.top = Math.max(8, y) + "px";
+}
+
+function hideTip() { $("#tip").style.display = "none"; }
+
+/// Hover hit-testing for a chart's trade markers; redraws with the hovered one enlarged.
+function attachTradeHover(u, markers, yOf, state) {
+  u.over.addEventListener("mousemove", e => {
+    const box = u.over.getBoundingClientRect();
+    const mx = e.clientX - box.left, my = e.clientY - box.top;
+    let best = null, bestD = 10 * 10;
+    for (const f of markers) {
+      const v = yOf(f);
+      if (v == null) continue;
+      const dx = u.valToPos(f.t_ms / 1000, "x") - mx, dy = u.valToPos(v, "y") - my;
+      const d = dx * dx + dy * dy;
+      if (d <= bestD) { best = f; bestD = d; }
+    }
+    if (best !== state.hot) { state.hot = best; u.redraw(false); }
+    if (best) { showTip(best, e.clientX, e.clientY); u.over.style.cursor = "pointer"; }
+    else { hideTip(); u.over.style.cursor = ""; }
+  });
+  u.over.addEventListener("mouseleave", () => {
+    hideTip();
+    if (state.hot) { state.hot = null; u.redraw(false); }
+  });
+}
+
+function fmtDur(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function paperTable(fills) {
+  const t = el("table", {},
+    el("thead", {}, el("tr", {}, el("th", {}, "Time"), el("th", {}, "Action"), el("th", { class: "num" }, "Size"), el("th", { class: "num" }, "Price"), el("th", { class: "num" }, "Fee"), el("th", {}, "Position after"))));
+  const tb = el("tbody");
+  for (const f of fills) {
+    const p = f.position || {};
+    tb.append(el("tr", {}, el("td", {}, hhmmss(f.t_ms)), el("td", {}, f.action), el("td", { class: "num" }, String(f.size)),
+      el("td", { class: "num" }, price(f.price)), el("td", { class: "num" }, usd(f.fee)), el("td", {}, `YES ${p.yes || 0} / NO ${p.no || 0}`)));
+  }
+  t.append(tb);
+  return el("div", { class: "card" }, el("h3", {}, "Paper fills"), t);
+}
+
+function downloadCsv() {
+  const g = view.grid;
+  const cols = ["t", "btc", "yes_bid", "yes_ask", "no_bid", "no_ask", "fair"];
+  const lines = [["time_utc", ...cols.slice(1)].join(",")];
+  for (let i = 0; i < g.t.length; i++) {
+    lines.push([new Date(g.t[i] * 1000).toISOString(), ...cols.slice(1).map(c => g[c][i] ?? "")].join(","));
+  }
+  const a = el("a", { href: URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" })), download: `${view.meta.ticker}.csv` });
+  a.click();
+}
+
+// -------------------------------------------------------------- charts ---
+function baseOpts(width, height) {
+  const ink2 = css("--ink-2"), grid = css("--grid"), axis = css("--axis");
+  const font = `12px system-ui, -apple-system, "Segoe UI", sans-serif`;
+  const ax = { stroke: ink2, font, grid: { stroke: grid, width: 1 }, ticks: { stroke: axis, width: 1, size: 4 } };
+  return {
+    width, height,
+    series: [{ label: "Time", value: (u, v) => v == null ? "–" : hhmmss(v * 1000) }],
+    cursor: { sync: { key: "session", setSeries: false }, drag: { x: true, y: false }, points: { size: 8 } },
+    legend: { live: true },
+    scales: { x: { time: true } },
+    axes: [{ ...ax }, { ...ax, size: 64 }],
+    hooks: {
+      setSelect: [u => {
+        if (u.select.width < 2) return;
+        zoom = [u.posToVal(u.select.left, "x"), u.posToVal(u.select.left + u.select.width, "x")];
+        u.setSelect({ width: 0, height: 0 }, false);
+        for (const c of charts) c.setScale("x", { min: zoom[0], max: zoom[1] });
+      }],
+    },
+  };
+}
+
+function shadeX(u, from, to, fill) {
+  const x0 = u.valToPos(from, "x", true), x1 = u.valToPos(to, "x", true);
+  const { left, top, width, height } = u.bbox;
+  const a = Math.max(left, Math.min(x0, x1)), b = Math.min(left + width, Math.max(x0, x1));
+  if (b <= a) return;
+  u.ctx.fillStyle = fill;
+  u.ctx.fillRect(a, top, b - a, height);
+}
+
+function vline(u, t, label) {
+  const x = u.valToPos(t, "x", true);
+  const { left, top, width, height } = u.bbox;
+  if (x < left || x > left + width) return;
+  const ctx = u.ctx, r = uPlot.pxRatio;
+  ctx.strokeStyle = css("--axis"); ctx.lineWidth = r; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + height); ctx.stroke();
+  ctx.fillStyle = css("--muted"); ctx.font = `${11 * r}px system-ui, sans-serif`;
+  ctx.textBaseline = "top"; ctx.textAlign = "left";
+  ctx.fillText(label, x + 4 * r, top + 4 * r);
+}
+
+function windowOverlays(u) {
+  const m = view.meta, open = m.open_ms / 1000, close = m.close_ms / 1000;
+  const wash = css("--window-wash");
+  shadeX(u, open - 60, open, wash);
+  shadeX(u, close - 60, close, wash);
+  for (const g of m.gaps) shadeX(u, g.from_ms / 1000, g.to_ms / 1000, css("--gap-wash"));
+  vline(u, open, "open");
+  vline(u, close, "close");
+}
+
+function drawCharts() {
+  for (const c of charts) c.destroy();
+  charts = [];
+  const g = view.grid, m = view.meta;
+  const width = Math.max(320, $("#c-btc").clientWidth);
+  const yes = css("--yes"), no = css("--no"), fair = css("--fair"), ink = css("--ink"), surface = css("--surface");
+  const r = uPlot.pxRatio;
+
+  // BRTI
+  const strike = m.strike;
+  const btcOpts = baseOpts(width, 240);
+  btcOpts.series = [btcOpts.series[0], { label: "BRTI", stroke: ink, width: 2, value: (u, v) => usd(v) }];
+  btcOpts.scales.y = {
+    range: (u, min, max) => {
+      if (min == null) return [0, 1];
+      if (strike != null) { min = Math.min(min, strike); max = Math.max(max, strike); }
+      const pad = Math.max((max - min) * 0.08, 5);
+      return [min - pad, max + pad];
+    },
+  };
+  btcOpts.axes[1].values = (u, vals) => vals.map(v => "$" + v.toLocaleString());
+  btcOpts.hooks.drawClear = [windowOverlays];
+  btcOpts.hooks.draw = [u => {
+    if (strike == null) return;
+    const y = u.valToPos(strike, "y", true), { left, width } = u.bbox, ctx = u.ctx;
+    ctx.strokeStyle = css("--ink-2"); ctx.lineWidth = 1.5 * r; ctx.setLineDash([6 * r, 4 * r]);
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + width, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = css("--ink-2"); ctx.font = `${11 * r}px system-ui, sans-serif`;
+    ctx.textBaseline = "bottom"; ctx.textAlign = "left";
+    ctx.fillText(`strike ${usd(strike)}`, left + 4 * r, y - 3 * r);
+    if (m.expiration_value != null) {
+      const x = u.valToPos(m.close_ms / 1000, "x", true), ye = u.valToPos(m.expiration_value, "y", true);
+      ctx.fillStyle = m.result === "yes" ? yes : no; ctx.strokeStyle = surface; ctx.lineWidth = 2 * r;
+      ctx.beginPath(); ctx.arc(x, ye, 5 * r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    }
+  }];
+  const markers = tradeMarkers();
+  const btcHover = { hot: null }, pxHover = { hot: null };
+  const onBtc = f => btcAt(f.t_ms), onPx = f => f.price;
+  btcOpts.hooks.draw.push(u => drawMarkers(u, markers, onBtc, btcHover.hot));
+  const btcChart = new uPlot(btcOpts, [g.t, g.btc], $("#c-btc"));
+  attachTradeHover(btcChart, markers, onBtc, btcHover);
+  charts.push(btcChart);
+
+  // Contract prices
+  const pxOpts = baseOpts(width, 280);
+  const fmt = (u, v) => price(v);
+  pxOpts.series = [pxOpts.series[0],
+    { label: "YES bid", stroke: yes, width: 1.5, value: fmt },
+    { label: "YES ask", stroke: yes, width: 1.5, value: fmt },
+    { label: "NO bid", stroke: no, width: 1.5, value: fmt },
+    { label: "NO ask", stroke: no, width: 1.5, value: fmt },
+    { label: "Fair P(YES)", stroke: fair, width: 2, value: fmt },
+  ];
+  pxOpts.bands = [{ series: [2, 1], fill: rgba(yes, 0.18) }, { series: [4, 3], fill: rgba(no, 0.18) }];
+  pxOpts.scales.y = { range: [0, 1] };
+  pxOpts.axes[1].values = (u, vals) => vals.map(v => v.toFixed(2));
+  pxOpts.hooks.drawClear = [windowOverlays];
+  pxOpts.hooks.draw = [u => drawMarkers(u, markers, onPx, pxHover.hot)];
+  const pxChart = new uPlot(pxOpts, [g.t, g.yes_bid, g.yes_ask, g.no_bid, g.no_ask, g.fair], $("#c-px"));
+  attachTradeHover(pxChart, markers, onPx, pxHover);
+  charts.push(pxChart);
+
+  // Backtest equity
+  if (bt && $("#c-eq")) {
+    const eqOpts = baseOpts(width, 180);
+    const start = bt.balance;
+    const value = bt.equity.v.map(p => start + p);
+    eqOpts.series = [eqOpts.series[0],
+      { label: "Account value", stroke: fair, width: 2, value: (u, v) => v == null ? "–" : `${usd(v)} (${signed(v - start)})` }];
+    eqOpts.axes[1].values = (u, vals) => vals.map(v => "$" + v.toLocaleString(undefined, { maximumFractionDigits: 0 }));
+    eqOpts.axes[1].size = 72;
+    eqOpts.scales.x = { time: true, range: () => [g.t[0], g.t[g.t.length - 1]] };
+    eqOpts.scales.y = { range: (u, min, max) => { const pad = Math.max((max - min) * 0.1, 5); return [Math.min(min, start) - pad, Math.max(max, start) + pad]; } };
+    eqOpts.hooks.drawClear = [windowOverlays];
+    eqOpts.hooks.draw = [u => {
+      const y = u.valToPos(start, "y", true), { left, width } = u.bbox, ctx = u.ctx;
+      ctx.strokeStyle = css("--ink-2"); ctx.lineWidth = r; ctx.setLineDash([4 * r, 4 * r]);
+      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + width, y); ctx.stroke(); ctx.setLineDash([]);
+    }];
+    charts.push(new uPlot(eqOpts, [bt.equity.t, value], $("#c-eq")));
+  }
+
+  // Trade flow
+  const fl = view.flow;
+  const flowOpts = baseOpts(width, 180);
+  const bars = uPlot.paths.bars({ size: [0.8, 12], gap: 1 });
+  const vol = (u, v) => v == null ? "–" : Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  flowOpts.series = [flowOpts.series[0],
+    { label: "YES takers", stroke: yes, fill: yes, width: 0, paths: bars, points: { show: false }, value: vol },
+    { label: "NO takers", stroke: no, fill: no, width: 0, paths: bars, points: { show: false }, value: vol },
+  ];
+  flowOpts.axes[1].values = (u, vals) => vals.map(v => Math.abs(v).toLocaleString());
+  flowOpts.hooks.drawClear = [windowOverlays];
+  // Same x range as the other charts even where nothing traded.
+  flowOpts.scales.x = { time: true, range: () => [g.t[0], g.t[g.t.length - 1]] };
+  charts.push(new uPlot(flowOpts, [fl.t, fl.yes, fl.no], $("#c-flow")));
+
+  // Restore zoom; double-click resets all.
+  if (zoom) for (const c of charts) c.setScale("x", { min: zoom[0], max: zoom[1] });
+  for (const c of charts) {
+    c.over.addEventListener("dblclick", () => {
+      zoom = null;
+      for (const k of charts) k.setScale("x", { min: g.t[0], max: g.t[g.t.length - 1] });
+    });
+  }
+  for (const c of charts) {
+    for (const s of c.root.querySelectorAll(".u-marker")) s.style.borderColor = s.style.borderColor || s.style.background;
+  }
+}
+
+new ResizeObserver(() => {
+  if (!charts.length) return;
+  const w = Math.max(320, $("#c-btc").clientWidth);
+  for (const c of charts) c.setSize({ width: w, height: c.height });
+}).observe($("#detail"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => view && drawCharts());
+
+// ------------------------------------------------------------- refresh ---
+setInterval(loadSessions, 10000);
+setInterval(pollLive, 2000);
+setInterval(() => {
+  if (view && selected && (view.meta.status === "recording" || view.meta.status === "closed")) loadDetail(false);
+}, 5000);
+
+(async () => {
+  await Promise.all([loadSessions(), loadStrategies(), pollLive()]);
+  const [d, t] = location.hash.slice(1).split("/");
+  const pick = sessions.find(s => s.date === d && s.ticker === t) || sessions.find(s => s.status === "recording" && s.open_ms <= Date.now()) || sessions[0];
+  if (pick) select(pick.date, pick.ticker);
+})();
+</script>
+</body>
+</html>

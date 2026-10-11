@@ -1,0 +1,37 @@
+[workspace]
+resolver = "3"
+members = ["crates/kalshi", "crates/strategy", "crates/market", "crates/rl", "kbot"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+kalshi = { path = "crates/kalshi" }
+strategy = { path = "crates/strategy" }
+market = { path = "crates/market" }
+rl = { path = "crates/rl" }
+
+anyhow = "1"
+axum = "0.8"
+base64 = "0.22"
+burn = { version = "0.21", default-features = false, features = ["std", "ndarray", "autodiff"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+futures-util = "0.3"
+rand = "0.9"
+rayon = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+rsa = { version = "0.9", features = ["sha2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.27", features = ["rustls-tls-webpki-roots"] }
+toml = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+zstd = "0.13"
+
+[profile.release]
+debug = 1

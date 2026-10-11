@@ -1,0 +1,15 @@
+[package]
+name = "market"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+kalshi.workspace = true
+rand = { workspace = true, features = ["small_rng"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+strategy.workspace = true
+tracing.workspace = true
+zstd.workspace = true

@@ -1,0 +1,28 @@
+# Recorder daemon as a systemd user service.
+#
+#   cargo build --release -p kbot
+#   cp deploy/kalshi-recorder.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kalshi-recorder
+#   loginctl enable-linger $USER      # keep running while logged out
+#   journalctl --user -u kalshi-recorder -f
+#
+# SIGTERM on stop closes every zstd frame; a hard kill is also safe since
+# the next start writes new segments rather than appending.
+
+[Unit]
+Description=Kalshi KXBTC15M recorder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/code/kalshi-bot
+ExecStart=%h/code/kalshi-bot/target/release/kbot record
+Environment=RUST_LOG=info
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

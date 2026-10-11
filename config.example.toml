@@ -1,0 +1,4 @@
+# Copy to config.toml (gitignored). Env vars KALSHI_KEY_ID / KALSHI_KEY_PATH / KBOT_DATA_DIR override.
+key_id = "your-kalshi-api-key-id"
+key_path = "/path/to/kalshi-key.pem"   # RSA private key (PKCS#1 or PKCS#8 PEM). Never commit it.
+data_dir = "data"
